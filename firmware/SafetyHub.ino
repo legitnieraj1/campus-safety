@@ -10,11 +10,13 @@
 #define BUZZER_PIN    5
 #define DHT_PIN       4
 #define DHT_TYPE      DHT11
+#define PIR_PIN       13
 
 // ─── Thresholds ───
-#define QUAKE_THRESHOLD  2.5
-#define GAS_THRESHOLD    800
-#define TEMP_THRESHOLD   45.0
+#define QUAKE_THRESHOLD    2.5
+#define GAS_THRESHOLD      800
+#define TEMP_THRESHOLD     45.0
+#define MOTION_THRESHOLD   2
 
 // ─── WiFi AP ───
 const char* AP_SSID = "Campus_Safety_System";
@@ -26,12 +28,15 @@ Adafruit_MPU6050 mpu;
 DHT dht(DHT_PIN, DHT_TYPE);
 
 // ─── Sensor State ───
-float accelMag    = 0.0;
-int   gasVal      = 0;
-float temperature = 0.0;
-float humidity    = 0.0;
-String alertMessage = "System Normal";
-bool mpuAvailable = false;
+float accelMag       = 0.0;
+int   gasVal         = 0;
+float temperature    = 0.0;
+float humidity       = 0.0;
+String alertMessage  = "System Normal";
+bool mpuAvailable    = false;
+bool motionDetected  = false;
+int motionCount      = 0;
+int motionConsecutive = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -43,6 +48,9 @@ void setup() {
 
   // DHT11
   dht.begin();
+
+  // PIR Motion Sensor
+  pinMode(PIR_PIN, INPUT);
 
   // MPU6050
   Wire.begin(21, 22);
@@ -98,11 +106,26 @@ void readSensors() {
   float h = dht.readHumidity();
   if (!isnan(t)) temperature = t;
   if (!isnan(h)) humidity = h;
+
+  // PIR Motion Sensor
+  int pirValue = digitalRead(PIR_PIN);
+  if (pirValue == HIGH) {
+    motionConsecutive++;
+    motionCount++;
+  } else {
+    motionConsecutive = 0;
+  }
+
+  if (motionConsecutive >= MOTION_THRESHOLD) {
+    motionDetected = true;
+  } else {
+    motionDetected = false;
+  }
 }
 
 // ─── Evaluate alert conditions ───
 void evaluateAlerts() {
-  // Priority: earthquake > temperature > gas
+  // Priority: earthquake > temperature > gas > motion
   if (mpuAvailable && accelMag >= QUAKE_THRESHOLD) {
     alertMessage = "EARTHQUAKE DETECTED";
     tone(BUZZER_PIN, 2000, 500);
@@ -112,6 +135,9 @@ void evaluateAlerts() {
   } else if (gasVal > GAS_THRESHOLD) {
     alertMessage = "GAS LEAK DETECTED";
     tone(BUZZER_PIN, 1800, 400);
+  } else if (motionDetected) {
+    alertMessage = "Trespassing Alert: Motion detected";
+    tone(BUZZER_PIN, 1000, 200);
   } else {
     alertMessage = "System Normal";
     noTone(BUZZER_PIN);
@@ -127,7 +153,9 @@ void handleApiData() {
   json += "\"humidity\":" + String(humidity, 1) + ",";
   json += "\"alert\":\"" + alertMessage + "\",";
   json += "\"uptimeMs\":" + String(millis()) + ",";
-  json += "\"mpuAvailable\":" + String(mpuAvailable ? "true" : "false");
+  json += "\"mpuAvailable\":" + String(mpuAvailable ? "true" : "false") + ",";
+  json += "\"motion\":" + String(motionDetected ? "true" : "false") + ",";
+  json += "\"motionCount\":" + String(motionCount);
   json += "}";
 
   server.sendHeader("Access-Control-Allow-Origin", "*");

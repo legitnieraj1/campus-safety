@@ -32,7 +32,11 @@ from urllib.error import URLError, HTTPError
 # ─── Configuration ───
 
 ESP32_URL     = os.getenv("ESP32_URL", "http://192.168.4.1/api/data")
-BACKEND_URL   = os.getenv("BACKEND_URL", "http://localhost:3000/api/ingest")
+# For local dev: http://localhost:3000/api/ingest
+# For production: https://your-app.vercel.app/api/ingest
+# For local dev: http://localhost:3000/api/ingest
+# For production: https://campussafetysystemkgislhackathon.vercel.app/api/ingest
+BACKEND_URL   = os.getenv("BACKEND_URL", "https://campussafetysystemkgislhackathon.vercel.app/api/ingest")
 API_KEY       = os.getenv("API_KEY", "")
 ZONE_ID       = os.getenv("ZONE_ID", "skasc-seminar-hall-1")
 ZONE_NAME     = os.getenv("ZONE_NAME", "SKASC - Seminar Hall 1")
@@ -93,6 +97,8 @@ def post_to_backend(sensor_data):
         "alert": sensor_data.get("alert", "System Normal"),
         "uptimeMs": sensor_data.get("uptimeMs", 0),
         "mpuAvailable": sensor_data.get("mpuAvailable", True),
+        "motion": sensor_data.get("motion", False),
+        "motionCount": sensor_data.get("motionCount", 0),
         "zoneId": ZONE_ID,
         "zoneName": ZONE_NAME,
         "gatewayTimestamp": datetime.now(timezone.utc).isoformat(),
@@ -128,6 +134,8 @@ def post_offline_status():
         "alert": "Sensor Offline",
         "uptimeMs": 0,
         "mpuAvailable": False,
+        "motion": False,
+        "motionCount": 0,
         "zoneId": ZONE_ID,
         "zoneName": ZONE_NAME,
         "gatewayTimestamp": datetime.now(timezone.utc).isoformat(),
